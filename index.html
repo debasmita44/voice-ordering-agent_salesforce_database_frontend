@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Ordering - Twilight Cafe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .pulse-ring {
+            animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .modal-overlay {
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-orange-50 to-red-50 min-h-screen">
+    <!-- Login/Signup Modal -->
+    <div id="auth-modal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl font-bold text-gray-800">🎤 Twilight Cafe</h2>
+                <p class="text-gray-600 mt-2">Voice AI Ordering System</p>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="login-form">
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Welcome!</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" id="login-email" placeholder="your@email.com" 
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="login-password" placeholder="••••••••" 
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                    </div>
+                    <button onclick="login()" 
+                            class="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 transition shadow-md">
+                        Login
+                    </button>
+                </div>
+                <p class="text-center mt-6 text-gray-600">
+                    Don't have an account? 
+                    <button onclick="showSignup()" class="text-orange-500 font-semibold hover:underline">Sign Up</button>
+                </p>
+            </div>
+            
+            <!-- Signup Form -->
+            <div id="signup-form" class="hidden">
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Create Your Account</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <input type="text" id="signup-name" placeholder="John Doe" 
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" id="signup-email" placeholder="your@email.com" 
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Phone (Optional)</label>
+                        <input type="tel" id="signup-phone" placeholder="+1 234 567 8900" 
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="signup-password" placeholder="••••••••" 
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    </div>
+                    <button onclick="signup()" 
+                            class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition shadow-md">
+                        Create Account
+                    </button>
+                </div>
+                <p class="text-center mt-6 text-gray-600">
+                    Already have an account? 
+                    <button onclick="showLogin()" class="text-orange-500 font-semibold hover:underline">Login</button>
+                </p>
+            </div>
+            
+            <div id="auth-error" class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg hidden"></div>
+            <div id="auth-success" class="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg hidden"></div>
+        </div>
+    </div>
+
+    <!-- Main App (Hidden until logged in) -->
+    <div id="main-app" class="hidden">
+        <div class="container mx-auto p-4 max-w-6xl">
+            <!-- Header -->
+            <header class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                            🎤 <span id="restaurant-name">Twilight Cafe</span>
+                        </h1>
+                        <p class="text-gray-600 mt-2">
+                            Welcome, <span id="user-name-display" class="font-semibold text-orange-600"></span>!
+                        </p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="showOrderHistory()" 
+                                class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition shadow-md flex items-center gap-2">
+                            📋 Order History
+                        </button>
+                        <button onclick="logout()" 
+                                class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition shadow-md flex items-center gap-2">
+                            🚪 Logout
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <!-- Menu -->
+                <div class="md:col-span-1 bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">📋 Menu</h2>
+                    <div id="menu-list" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                </div>
+
+                <!-- Main Section -->
+                <div class="md:col-span-2 space-y-6">
+                    <!-- Voice Control -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <div class="flex flex-col items-center space-y-4">
+                            <div class="relative">
+                                <button id="mic-button" onclick="toggleListening()"
+                                        class="w-24 h-24 rounded-full flex items-center justify-center transition-all bg-orange-500 hover:bg-orange-600 shadow-lg relative z-10">
+                                    <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                    </svg>
+                                </button>
+                                <div id="pulse-ring" class="absolute inset-0 rounded-full bg-red-500 opacity-0"></div>
+                            </div>
+                            <div class="text-center">
+                                <p id="status-text" class="text-lg font-semibold text-gray-700">Click to speak</p>
+                                <p id="transcript-text" class="text-sm text-gray-500 mt-2 min-h-6"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Conversation -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">💬 Conversation</h2>
+                        <div id="conversation-log" class="space-y-3 max-h-64 overflow-y-auto"></div>
+                    </div>
+
+                    <!-- Cart -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-gray-800">🛒 Your Cart</h2>
+                            <button id="clear-cart-btn" onclick="clearCart()"
+                                    class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition hidden">
+                                🗑️ Clear
+                            </button>
+                        </div>
+                        <div id="cart-items" class="space-y-3">
+                            <p class="text-gray-500 text-center py-8">Your cart is empty</p>
+                        </div>
+                        <button id="checkout-btn" onclick="checkout()"
+                                class="w-full mt-4 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition shadow-md hidden">
+                            Complete Order
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order History Modal -->
+    <div id="history-modal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-8 max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div class="flex justify-between items-center mb-6 sticky top-0 bg-white pb-4 border-b">
+                <h2 class="text-2xl font-bold text-gray-800">📋 Your Order History</h2>
+                <button onclick="closeHistory()" class="text-gray-500 hover:text-gray-700 text-3xl font-bold leading-none">
+                    ×
+                </button>
+            </div>
+            <div id="history-content" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        // CHANGE THIS TO YOUR RAILWAY BACKEND URL
+        const API_URL = 'https://your-app-name.up.railway.app/api';
+        
+        let sessionToken = localStorage.getItem('session_token');
+        let currentUser = null;
+        let recognition = null;
+        let isListening = false;
+        let isSpeaking = false;
+        let speechQueue = [];
+        let isProcessingSpeech = false;
+        const SESSION_ID = 'user_' + Date.now();
+
+        // Check if user is logged in on page load
+        window.addEventListener('load', async () => {
+            if (sessionToken) {
+                try {
+                    const response = await fetch(API_URL.replace('/api', '') + '/api/auth/me', {
+                        headers: { 'Authorization': 'Bearer ' + sessionToken }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        currentUser = data.user;
+                        showMainApp();
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Session check failed:', e);
+                }
+            }
+            // Show login if not authenticated
+            document.getElementById('auth-modal').classList.remove('hidden');
+        });
+
+        function showSignup() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('signup-form').classList.remove('hidden');
+            clearMessages();
+        }
+
+        function showLogin() {
+            document.getElementById('signup-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+            clearMessages();
+        }
+
+        function clearMessages() {
+            document.getElementById('auth-error').classList.add('hidden');
+            document.getElementById('auth-success').classList.add('hidden');
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('auth-error');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            document.getElementById('auth-success').classList.add('hidden');
+        }
+
+        function showSuccess(msg) {
+            const el = document.getElementById('auth-success');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            document.getElementById('auth-error').classList.add('hidden');
+        }
+
+        async function signup() {
+            const name = document.getElementById('signup-name').value.trim();
+            const email = document.getElementById('signup-email').value.trim();
+            const phone = document.getElementById('signup-phone').value.trim();
+            const password = document.getElementById('signup-password').value;
+
+            if (!name || !email || !password) {
+                showError('Please fill in all required fields');
+                return;
+            }
+
+            if (password.length < 6) {
+                showError('Password must be at least 6 characters');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL + '/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, phone, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    showSuccess('Account created successfully! Please login.');
+                    setTimeout(() => {
+                        showLogin();
+                        document.getElementById('login-email').value = email;
+                    }, 1500);
+                } else {
+                    showError(data.error || 'Signup failed. Please try again.');
+                }
+            } catch (e) {
+                showError('Connection error. Please check your internet and try again.');
+                console.error('Signup error:', e);
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            if (!email || !password) {
+                showError('Please enter email and password');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL + '/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    sessionToken = data.session_token;
+                    currentUser = data.user;
+                    localStorage.setItem('session_token', sessionToken);
+                    showMainApp();
+                } else {
+                    showError(data.error || 'Login failed. Please check your credentials.');
+                }
+            } catch (e) {
+                showError('Connection error. Please check your internet and try again.');
+                console.error('Login error:', e);
+            }
+        }
+
+        async function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                try {
+                    await fetch(API_URL + '/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_token: sessionToken })
+                    });
+                } catch (e) {
+                    console.error('Logout error:', e);
+                }
+                localStorage.removeItem('session_token');
+                location.reload();
+            }
+        }
+
+        function showMainApp() {
+            document.getElementById('auth-modal').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            document.getElementById('user-name-display').textContent = currentUser.name;
+            initSpeechRecognition();
+            loadMenu();
+            loadWelcome();
+        }
+
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+
+                recognition.onresult = async (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('transcript-text').textContent = 'You said: "' + transcript + '"';
+                    addToLog('user', transcript);
+                    await processOrder(transcript);
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    stopListening();
+                    if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                        addToLog('system', 'Sorry, I had trouble hearing you. Please try again.');
+                        queueSpeech('Sorry, I had trouble hearing you. Please try again.');
+                    }
+                };
+
+                recognition.onend = () => {
+                    stopListening();
+                };
+            } else {
+                alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+            }
+        }
+
+        function toggleListening() {
+            if (isListening) {
+                stopListening();
+            } else {
+                startListening();
+            }
+        }
+
+        function startListening() {
+            if (recognition && !isListening && !isSpeaking) {
+                isListening = true;
+                document.getElementById('transcript-text').textContent = '';
+                document.getElementById('mic-button').classList.add('bg-red-500', 'animate-pulse');
+                document.getElementById('mic-button').classList.remove('bg-orange-500');
+                document.getElementById('pulse-ring').classList.add('pulse-ring');
+                document.getElementById('pulse-ring').classList.remove('opacity-0');
+                document.getElementById('status-text').textContent = 'Listening...';
+                recognition.start();
+            } else if (isSpeaking) {
+                document.getElementById('status-text').textContent = 'Please wait, I\'m still speaking...';
+            }
+        }
+
+        function stopListening() {
+            if (recognition && isListening) {
+                isListening = false;
+                recognition.stop();
+                document.getElementById('mic-button').classList.remove('bg-red-500', 'animate-pulse');
+                document.getElementById('mic-button').classList.add('bg-orange-500');
+                document.getElementById('pulse-ring').classList.remove('pulse-ring');
+                document.getElementById('pulse-ring').classList.add('opacity-0');
+                if (!isSpeaking) {
+                    document.getElementById('status-text').textContent = 'Processing...';
+                }
+            }
+        }
+
+        function queueSpeech(text) {
+            console.log('Queueing speech:', text);
+            speechQueue.push(text);
+            if (!isProcessingSpeech) {
+                processSpeechQueue();
+            }
+        }
+
+        async function processSpeechQueue() {
+            if (speechQueue.length === 0) {
+                isProcessingSpeech = false;
+                isSpeaking = false;
+                document.getElementById('status-text').textContent = 'Click to speak';
+                return;
+            }
+
+            isProcessingSpeech = true;
+            isSpeaking = true;
+            document.getElementById('status-text').textContent = 'Speaking...';
+
+            const text = speechQueue.shift();
+            console.log('Speaking:', text);
+            await speakText(text);
+            
+            await new Promise(resolve => setTimeout(resolve, 300));
+            processSpeechQueue();
+        }
+
+        function speakText(text) {
+            return new Promise((resolve) => {
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1;
+                    utterance.volume = 1;
+                    
+                    utterance.onend = () => {
+                        console.log('Finished speaking');
+                        resolve();
+                    };
+
+                    utterance.onerror = (event) => {
+                        console.error('Speech synthesis error:', event);
+                        resolve();
+                    };
+
+                    if (window.speechSynthesis.paused) {
+                        window.speechSynthesis.resume();
+                    }
+                    
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    resolve();
+                }
+            });
+        }
+
+        function addToLog(sender, message) {
+            const log = document.getElementById('conversation-log');
+            const div = document.createElement('div');
+            
+            let bgColor = 'bg-gray-100';
+            let alignment = '';
+            let senderLabel = 'System';
+            
+            if (sender === 'user') {
+                bgColor = 'bg-blue-100';
+                alignment = 'ml-8';
+                senderLabel = 'You';
+            } else if (sender === 'agent') {
+                bgColor = 'bg-green-100';
+                alignment = 'mr-8';
+                senderLabel = 'Plato';
+            }
+            
+            div.className = 'p-3 rounded-lg ' + bgColor + ' ' + alignment;
+            div.innerHTML = '<p class="text-sm font-semibold text-gray-600 mb-1">' + senderLabel + '</p>' +
+                           '<p class="text-gray-800">' + message + '</p>';
+            
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function processOrder(text) {
+            try {
+                document.getElementById('status-text').textContent = 'Processing...';
+                
+                const response = await fetch(API_URL + '/process-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        text: text,
+                        session_id: SESSION_ID,
+                        session_token: sessionToken
+                    })
+                });
+
+                const data = await response.json();
+                addToLog('agent', data.response);
+                queueSpeech(data.response);
+                updateCart(data.cart, data.total);
+            } catch (e) {
+                console.error('Error processing order:', e);
+                addToLog('system', 'Sorry, there was an error processing your order.');
+                queueSpeech('Sorry, there was an error processing your order.');
+            }
+        }
+
+        async function loadMenu() {
+            try {
+                const response = await fetch(API_URL + '/menu');
+                const data = await response.json();
+                const list = document.getElementById('menu-list');
+                list.innerHTML = '';
+                
+                Object.values(data.menu).forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition';
+                    div.innerHTML = '<span class="font-medium text-gray-700">' + item.name + '</span>' +
+                                   '<span class="text-orange-600 font-semibold">$' + item.price.toFixed(2) + '</span>';
+                    list.appendChild(div);
+                });
+            } catch (e) {
+                console.error('Error loading menu:', e);
+            }
+        }
+
+        async function loadWelcome() {
+            try {
+                const response = await fetch(API_URL + '/welcome', {
+                    headers: { 'Authorization': 'Bearer ' + sessionToken }
+                });
+                const data = await response.json();
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addToLog('agent', data.response);
+                queueSpeech(data.response);
+            } catch (e) {
+                console.error('Error loading welcome:', e);
+                const fallbackMsg = "Hey " + currentUser.name + "! Welcome to Twilight Cafe! I'm Plato. What can I get you?";
+                addToLog('agent', fallbackMsg);
+                queueSpeech(fallbackMsg);
+            }
+        }
+
+        function updateCart(cart, total) {
+            const items = document.getElementById('cart-items');
+            const clearBtn = document.getElementById('clear-cart-btn');
+            const checkoutBtn = document.getElementById('checkout-btn');
+            
+            if (cart.length === 0) {
+                items.innerHTML = '<p class="text-gray-500 text-center py-8">Your cart is empty</p>';
+                clearBtn.classList.add('hidden');
+                checkoutBtn.classList.add('hidden');
+            } else {
+                let html = '';
+                cart.forEach(item => {
+                    html += '<div class="flex justify-between items-center p-3 bg-gray-50 rounded">' +
+                           '<div><span class="font-medium text-gray-700">' + item.name + '</span>' +
+                           '<span class="text-gray-500 text-sm ml-2">x' + item.quantity + '</span></div>' +
+                           '<span class="text-orange-600 font-semibold">$' + (item.price * item.quantity).toFixed(2) + '</span></div>';
+                });
+                html += '<div class="border-t pt-3 mt-3"><div class="flex justify-between items-center">' +
+                       '<span class="text-lg font-bold text-gray-800">Total:</span>' +
+                       '<span class="text-2xl font-bold text-orange-600">$' + total.toFixed(2) + '</span></div></div>';
+                items.innerHTML = html;
+                clearBtn.classList.remove('hidden');
+                checkoutBtn.classList.remove('hidden');
+            }
+        }
+
+        function clearCart() {
+            processOrder('clear cart');
+        }
+
+        function checkout() {
+            processOrder('complete my order');
+        }
+
+        async function showOrderHistory() {
+            try {
+                const response = await fetch(API_URL + '/orders/history', {
+                    headers: { 'Authorization': 'Bearer ' + sessionToken }
+                });
+                const data = await response.json();
+                const content = document.getElementById('history-content');
+                
+                if (data.orders.length === 0) {
+                    content.innerHTML = '<div class="text-center py-12"><p class="text-gray-500 text-lg">No orders yet</p>' +
+                                       '<p class="text-gray-400 text-sm mt-2">Place your first order to see it here!</p></div>';
+                } else {
+                    let html = '';
+                    data.orders.forEach((order, index) => {
+                        const statusColors = {
+                            'Draft': 'bg-yellow-100 text-yellow-800',
+                            'Completed': 'bg-green-100 text-green-800',
+                            'Cancelled': 'bg-red-100 text-red-800'
+                        };
+                        const statusColor = statusColors[order.status] || 'bg-gray-100 text-gray-800';
+                        
+                        html += '<div class="border border-gray-200 rounded-lg p-5 hover:shadow-md transition">';
+                        html += '<div class="flex justify-between items-start mb-3">';
+                        html += '<div><span class="px-3 py-1 rounded-full text-xs font-semibold ' + statusColor + '">' + order.status + '</span></div>';
+                        html += '<span class="text-lg font-bold text-gray-800">$' + order.total.toFixed(2) + '</span>';
+                        html += '</div>';
+                        html += '<div class="text-sm text-gray-500 mb-3">' + new Date(order.date).toLocaleString() + '</div>';
+                        html += '<div class="space-y-1 text-sm text-gray-700">';
+                        order.items.forEach(item => {
+                            html += '<div class="flex justify-between"><span>' + item.quantity + 'x ' + item.name + '</span>' +
+                                   '<span class="text-gray-600">$' + (item.price * item.quantity).toFixed(2) + '</span></div>';
+                        });
+                        html += '</div></div>';
+                    });
+                    content.innerHTML = html;
+                }
+                document.getElementById('history-modal').classList.remove('hidden');
+            } catch (e) {
+                console.error('Error loading order history:', e);
+                alert('Could not load order history. Please try again.');
+            }
+        }
+
+        function closeHistory() {
+            document.getElementById('history-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
