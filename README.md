@@ -1,2 +1,0 @@
-# voice-ordering-agent_salesforce_database_frontend
-voice-ordering-agent_salesforce_database_frontend
