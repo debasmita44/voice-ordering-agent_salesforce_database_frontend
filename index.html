@@ -124,7 +124,7 @@
 
     <script>
         const API_URL = 'https://your-app-name.up.railway.app/api';
-        let sessionToken = localStorage.getItem('session_token');
+        let sessionToken = null;
         let currentUser = null;
         let recognition = null;
         let isListening = false;
@@ -133,15 +133,18 @@
         let isProcessingSpeech = false;
         const SESSION_ID = 'user_' + Date.now();
         let useElevenLabs = true;
+        let welcomeMessageShown = false;
 
         window.addEventListener('load', async () => {
-            if (sessionToken) {
+            const storedToken = localStorage.getItem('session_token');
+            if (storedToken) {
                 try {
                     const response = await fetch(API_URL.replace('/api', '') + '/api/auth/me', {
-                        headers: { 'Authorization': 'Bearer ' + sessionToken }
+                        headers: { 'Authorization': 'Bearer ' + storedToken }
                     });
                     if (response.ok) {
                         const data = await response.json();
+                        sessionToken = storedToken;
                         currentUser = data.user;
                         showMainApp();
                         return;
@@ -322,22 +325,43 @@
             return new Promise(async (resolve) => {
                 if (useElevenLabs) {
                     try {
+                        console.log('🎤 Attempting ElevenLabs TTS...');
                         const response = await fetch(API_URL + '/text-to-speech', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ text: text })
                         });
+                        
+                        console.log('ElevenLabs response status:', response.status);
+                        
                         if (response.ok) {
                             const data = await response.json();
+                            console.log('ElevenLabs data:', data);
+                            
                             if (data.success && data.audio) {
+                                console.log('✅ Playing ElevenLabs audio');
                                 const audio = new Audio('data:audio/mpeg;base64,' + data.audio);
-                                audio.onended = () => resolve();
-                                audio.onerror = () => speakWithBrowserTTS(text, resolve);
-                                audio.play();
+                                audio.onended = () => {
+                                    console.log('✅ ElevenLabs audio finished');
+                                    resolve();
+                                };
+                                audio.onerror = (e) => {
+                                    console.error('❌ ElevenLabs audio playback error:', e);
+                                    speakWithBrowserTTS(text, resolve);
+                                };
+                                await audio.play();
                                 return;
+                            } else {
+                                console.log('❌ ElevenLabs data invalid, falling back');
                             }
+                        } else {
+                            console.log('❌ ElevenLabs request failed:', await response.text());
                         }
-                    } catch (e) { console.log('ElevenLabs unavailable'); }
+                    } catch (e) { 
+                        console.error('❌ ElevenLabs error:', e);
+                    }
                 }
+                console.log('🔊 Using browser TTS');
                 speakWithBrowserTTS(text, resolve);
             });
         }
@@ -401,13 +425,20 @@
         }
 
         async function loadWelcome() {
-            const response = await fetch(API_URL + '/welcome', {
-                headers: { 'Authorization': 'Bearer ' + sessionToken }
-            });
-            const data = await response.json();
-            await new Promise(r => setTimeout(r, 500));
-            addToLog('agent', data.response);
-            queueSpeech(data.response);
+            if (welcomeMessageShown) return;
+            welcomeMessageShown = true;
+            
+            try {
+                const response = await fetch(API_URL + '/welcome', {
+                    headers: { 'Authorization': 'Bearer ' + sessionToken }
+                });
+                const data = await response.json();
+                await new Promise(r => setTimeout(r, 500));
+                addToLog('agent', data.response);
+                queueSpeech(data.response);
+            } catch (e) {
+                console.error('Welcome message error:', e);
+            }
         }
 
         function updateCart(cart, total) {
