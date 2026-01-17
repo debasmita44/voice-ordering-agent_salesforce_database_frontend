@@ -123,7 +123,9 @@
     </div>
 
     <script>
+        // IMPORTANT: Change this to your Railway app URL
         const API_URL = 'https://web-production-bd93.up.railway.app/api';
+        
         let sessionToken = null;
         let currentUser = null;
         let recognition = null;
@@ -136,21 +138,64 @@
         let welcomeMessageShown = false;
 
         window.addEventListener('load', async () => {
+            console.log('🚀 App starting...');
+            console.log('📡 API URL:', API_URL);
+            
+            // Check if API URL is configured
+            if (API_URL.includes('your-app-name')) {
+                showError('Please update API_URL in the code with your Railway app URL');
+                return;
+            }
+            
+            // Test API connection
+            try {
+                console.log('🔍 Testing API connection...');
+                const testResponse = await fetch(API_URL.replace('/api', '') + '/', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!testResponse.ok) {
+                    throw new Error(`API returned status ${testResponse.status}`);
+                }
+                
+                const testData = await testResponse.json();
+                console.log('✅ API connected:', testData);
+            } catch (error) {
+                console.error('❌ API connection failed:', error);
+                showError(`Cannot connect to server. Please check:\n1. Railway app is deployed\n2. API_URL is correct\n3. CORS is enabled\n\nError: ${error.message}`);
+                return;
+            }
+            
+            // Check for existing session
             const storedToken = localStorage.getItem('session_token');
             if (storedToken) {
                 try {
+                    console.log('🔐 Checking existing session...');
                     const response = await fetch(API_URL.replace('/api', '') + '/api/auth/me', {
-                        headers: { 'Authorization': 'Bearer ' + storedToken }
+                        headers: { 
+                            'Authorization': 'Bearer ' + storedToken,
+                            'Content-Type': 'application/json'
+                        }
                     });
+                    
                     if (response.ok) {
                         const data = await response.json();
                         sessionToken = storedToken;
                         currentUser = data.user;
+                        console.log('✅ Session restored:', currentUser.name);
                         showMainApp();
                         return;
+                    } else {
+                        console.log('⚠️ Session expired, please login again');
+                        localStorage.removeItem('session_token');
                     }
-                } catch (e) { console.error('Session check failed:', e); }
+                } catch (e) { 
+                    console.error('❌ Session check failed:', e);
+                    localStorage.removeItem('session_token');
+                }
             }
+            
             document.getElementById('auth-modal').classList.remove('hidden');
         });
 
@@ -172,15 +217,19 @@
         }
 
         function showError(msg) {
-            document.getElementById('auth-error').textContent = msg;
-            document.getElementById('auth-error').classList.remove('hidden');
+            const errorEl = document.getElementById('auth-error');
+            errorEl.textContent = msg;
+            errorEl.classList.remove('hidden');
             document.getElementById('auth-success').classList.add('hidden');
+            console.error('❌ Error:', msg);
         }
 
         function showSuccess(msg) {
-            document.getElementById('auth-success').textContent = msg;
-            document.getElementById('auth-success').classList.remove('hidden');
+            const successEl = document.getElementById('auth-success');
+            successEl.textContent = msg;
+            successEl.classList.remove('hidden');
             document.getElementById('auth-error').classList.add('hidden');
+            console.log('✅ Success:', msg);
         }
 
         async function signup() {
@@ -188,48 +237,87 @@
             const email = document.getElementById('signup-email').value.trim();
             const phone = document.getElementById('signup-phone').value.trim();
             const password = document.getElementById('signup-password').value;
-            if (!name || !email || !password) { showError('Please fill in all required fields'); return; }
-            if (password.length < 6) { showError('Password must be at least 6 characters'); return; }
+            
+            if (!name || !email || !password) { 
+                showError('Please fill in all required fields'); 
+                return; 
+            }
+            if (password.length < 6) { 
+                showError('Password must be at least 6 characters'); 
+                return; 
+            }
+            
             try {
+                console.log('📝 Signing up:', email);
                 const response = await fetch(API_URL + '/auth/signup', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, email, phone, password })
                 });
+                
                 const data = await response.json();
+                
                 if (response.ok) {
+                    console.log('✅ Signup successful');
                     showSuccess('Account created! Please login.');
-                    setTimeout(() => { showLogin(); document.getElementById('login-email').value = email; }, 1500);
-                } else { showError(data.error || 'Signup failed'); }
-            } catch (e) { showError('Connection error'); }
+                    setTimeout(() => { 
+                        showLogin(); 
+                        document.getElementById('login-email').value = email; 
+                    }, 1500);
+                } else { 
+                    showError(data.error || 'Signup failed'); 
+                }
+            } catch (e) { 
+                console.error('❌ Signup error:', e);
+                showError('Connection error: ' + e.message); 
+            }
         }
 
         async function login() {
             const email = document.getElementById('login-email').value.trim();
             const password = document.getElementById('login-password').value;
-            if (!email || !password) { showError('Please enter email and password'); return; }
+            
+            if (!email || !password) { 
+                showError('Please enter email and password'); 
+                return; 
+            }
+            
             try {
+                console.log('🔐 Logging in:', email);
                 const response = await fetch(API_URL + '/auth/login', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
                 });
+                
                 const data = await response.json();
+                
                 if (response.ok) {
                     sessionToken = data.session_token;
                     currentUser = data.user;
                     localStorage.setItem('session_token', sessionToken);
+                    console.log('✅ Login successful:', currentUser.name);
                     showMainApp();
-                } else { showError(data.error || 'Login failed'); }
-            } catch (e) { showError('Connection error'); }
+                } else { 
+                    showError(data.error || 'Login failed'); 
+                }
+            } catch (e) { 
+                console.error('❌ Login error:', e);
+                showError('Connection error: ' + e.message); 
+            }
         }
 
         async function logout() {
             if (confirm('Are you sure you want to logout?')) {
                 try {
                     await fetch(API_URL + '/auth/logout', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ session_token: sessionToken })
                     });
-                } catch (e) {}
+                } catch (e) {
+                    console.error('Logout error:', e);
+                }
                 localStorage.removeItem('session_token');
                 location.reload();
             }
@@ -239,6 +327,7 @@
             document.getElementById('auth-modal').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
             document.getElementById('user-name-display').textContent = currentUser.name;
+            console.log('🎉 Welcome', currentUser.name);
             initSpeechRecognition();
             loadMenu();
             loadWelcome();
@@ -253,11 +342,13 @@
                 recognition.lang = 'en-US';
                 recognition.onresult = async (e) => {
                     const transcript = e.results[0][0].transcript;
+                    console.log('🎤 You said:', transcript);
                     document.getElementById('transcript-text').textContent = 'You said: "' + transcript + '"';
                     addToLog('user', transcript);
                     await processOrder(transcript);
                 };
                 recognition.onerror = (e) => {
+                    console.error('🎤 Speech recognition error:', e.error);
                     stopListening();
                     if (e.error !== 'no-speech' && e.error !== 'aborted') {
                         addToLog('system', 'Sorry, I had trouble hearing you.');
@@ -265,6 +356,9 @@
                     }
                 };
                 recognition.onend = () => stopListening();
+                console.log('✅ Speech recognition initialized');
+            } else {
+                console.warn('⚠️ Speech recognition not supported');
             }
         }
 
@@ -336,26 +430,27 @@
                         
                         if (response.ok) {
                             const data = await response.json();
-                            console.log('ElevenLabs data:', data);
+                            console.log('ElevenLabs response:', data);
                             
                             if (data.success && data.audio) {
                                 console.log('✅ Playing ElevenLabs audio');
                                 const audio = new Audio('data:audio/mpeg;base64,' + data.audio);
                                 audio.onended = () => {
-                                    console.log('✅ ElevenLabs audio finished');
+                                    console.log('✅ Audio finished');
                                     resolve();
                                 };
                                 audio.onerror = (e) => {
-                                    console.error('❌ ElevenLabs audio playback error:', e);
+                                    console.error('❌ Audio playback error:', e);
                                     speakWithBrowserTTS(text, resolve);
                                 };
                                 await audio.play();
                                 return;
                             } else {
-                                console.log('❌ ElevenLabs data invalid, falling back');
+                                console.log('❌ Invalid ElevenLabs response, using fallback');
                             }
                         } else {
-                            console.log('❌ ElevenLabs request failed:', await response.text());
+                            const errorText = await response.text();
+                            console.log('❌ ElevenLabs failed:', errorText);
                         }
                     } catch (e) { 
                         console.error('❌ ElevenLabs error:', e);
@@ -380,7 +475,9 @@
                 utterance.onend = () => callback();
                 utterance.onerror = () => callback();
                 window.speechSynthesis.speak(utterance);
-            } else { callback(); }
+            } else { 
+                callback(); 
+            }
         }
 
         function addToLog(sender, message) {
@@ -396,48 +493,73 @@
 
         async function processOrder(text) {
             try {
+                console.log('📦 Processing order:', text);
                 document.getElementById('status-text').textContent = 'Processing...';
+                
                 const response = await fetch(API_URL + '/process-order', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, session_id: SESSION_ID, session_token: sessionToken })
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        text, 
+                        session_id: SESSION_ID, 
+                        session_token: sessionToken 
+                    })
                 });
+                
                 const data = await response.json();
+                console.log('📦 Order response:', data);
+                
                 addToLog('agent', data.response);
                 queueSpeech(data.response);
                 updateCart(data.cart, data.total);
             } catch (e) {
+                console.error('❌ Order processing error:', e);
                 addToLog('system', 'Error processing order');
                 queueSpeech('Sorry, there was an error.');
             }
         }
 
         async function loadMenu() {
-            const response = await fetch(API_URL + '/menu');
-            const data = await response.json();
-            const list = document.getElementById('menu-list');
-            list.innerHTML = '';
-            Object.values(data.menu).forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'flex justify-between p-3 bg-gray-50 rounded hover:bg-gray-100';
-                div.innerHTML = '<span>' + item.name + '</span><span class="text-orange-600">$' + item.price.toFixed(2) + '</span>';
-                list.appendChild(div);
-            });
+            try {
+                console.log('📋 Loading menu...');
+                const response = await fetch(API_URL + '/menu');
+                const data = await response.json();
+                const list = document.getElementById('menu-list');
+                list.innerHTML = '';
+                Object.values(data.menu).forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between p-3 bg-gray-50 rounded hover:bg-gray-100';
+                    div.innerHTML = '<span>' + item.name + '</span><span class="text-orange-600">$' + item.price.toFixed(2) + '</span>';
+                    list.appendChild(div);
+                });
+                console.log('✅ Menu loaded');
+            } catch (e) {
+                console.error('❌ Menu load error:', e);
+            }
         }
 
         async function loadWelcome() {
-            if (welcomeMessageShown) return;
+            if (welcomeMessageShown) {
+                console.log('⚠️ Welcome message already shown');
+                return;
+            }
             welcomeMessageShown = true;
             
             try {
+                console.log('👋 Loading welcome message...');
                 const response = await fetch(API_URL + '/welcome', {
                     headers: { 'Authorization': 'Bearer ' + sessionToken }
                 });
                 const data = await response.json();
-                await new Promise(r => setTimeout(r, 500));
+                
+                // Wait longer to ensure ElevenLabs is ready
+                await new Promise(r => setTimeout(r, 1000));
+                
                 addToLog('agent', data.response);
                 queueSpeech(data.response);
+                console.log('✅ Welcome message loaded');
             } catch (e) {
-                console.error('Welcome message error:', e);
+                console.error('❌ Welcome message error:', e);
             }
         }
 
@@ -445,6 +567,7 @@
             const items = document.getElementById('cart-items');
             const clearBtn = document.getElementById('clear-cart-btn');
             const checkoutBtn = document.getElementById('checkout-btn');
+            
             if (cart.length === 0) {
                 items.innerHTML = '<p class="text-gray-500 text-center py-8">Your cart is empty</p>';
                 clearBtn.classList.add('hidden');
@@ -461,31 +584,51 @@
             }
         }
 
-        function clearCart() { processOrder('clear cart'); }
-        function checkout() { processOrder('complete my order'); }
-
-        async function showOrderHistory() {
-            const response = await fetch(API_URL + '/orders/history', {
-                headers: { 'Authorization': 'Bearer ' + sessionToken }
-            });
-            const data = await response.json();
-            const content = document.getElementById('history-content');
-            if (data.orders.length === 0) {
-                content.innerHTML = '<div class="text-center py-12"><p class="text-gray-500 text-lg">No orders yet</p></div>';
-            } else {
-                let html = '';
-                data.orders.forEach(order => {
-                    const colors = { 'Draft': 'bg-yellow-100 text-yellow-800', 'Completed': 'bg-green-100 text-green-800', 'Cancelled': 'bg-red-100 text-red-800' };
-                    html += '<div class="border rounded-lg p-5"><div class="flex justify-between mb-3"><span class="px-3 py-1 rounded-full text-xs font-semibold ' + (colors[order.status] || 'bg-gray-100') + '">' + order.status + '</span><span class="text-lg font-bold">$' + order.total.toFixed(2) + '</span></div><div class="text-sm text-gray-600 mb-2">' + new Date(order.date).toLocaleString() + '</div><div class="text-sm">';
-                    order.items.forEach(item => { html += '<div>' + item.quantity + 'x ' + item.name + '</div>'; });
-                    html += '</div></div>';
-                });
-                content.innerHTML = html;
-            }
-            document.getElementById('history-modal').classList.remove('hidden');
+        function clearCart() { 
+            processOrder('clear cart'); 
+        }
+        
+        function checkout() { 
+            processOrder('complete my order'); 
         }
 
-        function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
+        async function showOrderHistory() {
+            try {
+                console.log('📜 Loading order history...');
+                const response = await fetch(API_URL + '/orders/history', {
+                    headers: { 'Authorization': 'Bearer ' + sessionToken }
+                });
+                const data = await response.json();
+                const content = document.getElementById('history-content');
+                
+                if (data.orders.length === 0) {
+                    content.innerHTML = html;
+                }
+                document.getElementById('history-modal').classList.remove('hidden');
+                console.log('✅ Order history loaded');
+            } catch (e) {
+                console.error('❌ Order history error:', e);
+            }
+        }
+
+        function closeHistory() { 
+            document.getElementById('history-modal').classList.add('hidden'); 
+        }
     </script>
 </body>
-</html>
+</html>.innerHTML = '<div class="text-center py-12"><p class="text-gray-500 text-lg">No orders yet</p></div>';
+                } else {
+                    let html = '';
+                    data.orders.forEach(order => {
+                        const colors = { 
+                            'Draft': 'bg-yellow-100 text-yellow-800', 
+                            'Completed': 'bg-green-100 text-green-800', 
+                            'Cancelled': 'bg-red-100 text-red-800' 
+                        };
+                        html += '<div class="border rounded-lg p-5"><div class="flex justify-between mb-3"><span class="px-3 py-1 rounded-full text-xs font-semibold ' + (colors[order.status] || 'bg-gray-100') + '">' + order.status + '</span><span class="text-lg font-bold">$' + order.total.toFixed(2) + '</span></div><div class="text-sm text-gray-600 mb-2">' + new Date(order.date).toLocaleString() + '</div><div class="text-sm">';
+                        order.items.forEach(item => { 
+                            html += '<div>' + item.quantity + 'x ' + item.name + '</div>'; 
+                        });
+                        html += '</div></div>';
+                    });
+                    content
