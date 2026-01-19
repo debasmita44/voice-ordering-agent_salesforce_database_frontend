@@ -532,17 +532,14 @@
 
         function speakWithBrowserTTS(text, callback) {
             if ('speechSynthesis' in window) {
-                // Cancel any ongoing speech
                 window.speechSynthesis.cancel();
                 
                 const utterance = new SpeechSynthesisUtterance(text);
                 
-                // Wait for voices to load
                 const setVoice = () => {
                     const voices = window.speechSynthesis.getVoices();
                     console.log('🔊 Available voices:', voices.length);
                     
-                    // Prefer natural-sounding voices
                     const preferred = [
                         'Google US English',
                         'Microsoft Zira - English (United States)',
@@ -561,7 +558,6 @@
                         }
                     }
                     
-                    // If no preferred voice found, use first English voice
                     if (!utterance.voice) {
                         const englishVoice = voices.find(v => v.lang.startsWith('en'));
                         if (englishVoice) {
@@ -571,10 +567,8 @@
                     }
                 };
                 
-                // Set voice immediately
                 setVoice();
                 
-                // Also set on voiceschanged event
                 if (window.speechSynthesis.onvoiceschanged !== undefined) {
                     window.speechSynthesis.onvoiceschanged = setVoice;
                 }
@@ -647,86 +641,116 @@
                 const data = await response.json();
                 const list = document.getElementById('menu-list');
                 list.innerHTML = '';
-                Object.values(data.menu).forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'flex justify-between p-3 bg-gray-50 rounded hover:bg-gray-100';
-                    div.innerHTML = '<span>' + item.name + '</span><span class="text-orange-600">$' + item.price.toFixed(2) + '</span>';
-                    list.appendChild(div);
+                Object
+                <function_calls>
+                <invoke name="artifacts">
+                <parameter name="command">update</parameter>
+                <parameter name="id">voice-ai-cafe</parameter>
+                <parameter name="old_str">                Object</parameter>
+                <parameter name="new_str">                Object.values(data.menu).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between p-3 bg-gray-50 rounded hover:bg-gray-100';
+                div.innerHTML = '<span>' + item.name + '</span><span class="text-orange-600">$' + item.price.toFixed(2) + '</span>';
+                list.appendChild(div);
                 });
                 console.log('✅ Menu loaded');
-            } catch (e) {
+                } catch (e) {
                 console.error('❌ Menu load error:', e);
-            }
-        }
+                }
+                }
 
         async function loadWelcome() {
-            if (welcomeMessageShown) {
-                console.log('⚠️ Welcome already shown');
-                return;
-            }
-            welcomeMessageShown = true;
-            
-            try {
-                console.log('👋 Loading welcome message...');
-                const response = await fetch(API_URL + '/welcome', {
-                    headers: { 'Authorization': 'Bearer ' + sessionToken }
-                });
-                const data = await response.json();
-                
-                console.log('👋 Welcome message received:', data.response);
-                addToLog('agent', data.response);
-                queueSpeech(data.response);
-                
-                console.log('✅ Welcome message queued');
-            } catch (e) {
-                console.error('❌ Welcome message error:', e);
-            }
+        if (welcomeMessageShown) {
+            console.log('⚠️ Welcome already shown');
+            return;
         }
-
-        function updateCart(cart, total) {
-            const items = document.getElementById('cart-items');
-            const clearBtn = document.getElementById('clear-cart-btn');
-            const checkoutBtn = document.getElementById('checkout-btn');
+        welcomeMessageShown = true;
+        
+        try {
+            console.log('👋 Loading welcome message...');
+            const response = await fetch(API_URL + '/welcome', {
+                headers: { 'Authorization': 'Bearer ' + sessionToken }
+            });
+            const data = await response.json();
             
-            if (cart.length === 0) {
-                items.innerHTML = '<p class="text-gray-500 text-center py-8">Your cart is empty</p>';
-                clearBtn.classList.add('hidden');
-                checkoutBtn.classList.add('hidden');
+            console.log('👋 Welcome message received:', data.response);
+            addToLog('agent', data.response);
+            queueSpeech(data.response);
+            
+            console.log('✅ Welcome message queued');
+        } catch (e) {
+            console.error('❌ Welcome message error:', e);
+        }
+    }
+
+    function updateCart(cart, total) {
+        const items = document.getElementById('cart-items');
+        const clearBtn = document.getElementById('clear-cart-btn');
+        const checkoutBtn = document.getElementById('checkout-btn');
+        
+        if (cart.length === 0) {
+            items.innerHTML = '<p class="text-gray-500 text-center py-8">Your cart is empty</p>';
+            clearBtn.classList.add('hidden');
+            checkoutBtn.classList.add('hidden');
+        } else {
+            let html = '';
+            cart.forEach(item => {
+                html += '<div class="flex justify-between p-3 bg-gray-50 rounded"><div><span>' + item.name + '</span><span class="text-gray-500 text-sm ml-2">x' + item.quantity + '</span></div><span class="text-orange-600">$' + (item.price * item.quantity).toFixed(2) + '</span></div>';
+            });
+            html += '<div class="border-t pt-3 mt-3 flex justify-between"><span class="text-lg font-bold">Total:</span><span class="text-2xl font-bold text-orange-600">$' + total.toFixed(2) + '</span></div>';
+            items.innerHTML = html;
+            clearBtn.classList.remove('hidden');
+            checkoutBtn.classList.remove('hidden');
+        }
+    }
+
+    function clearCart() { 
+        processOrder('clear cart'); 
+    }
+    
+    function checkout() { 
+        processOrder('complete my order'); 
+    }
+
+    async function showOrderHistory() {
+        try {
+            console.log('📜 Loading order history...');
+            const response = await fetch(API_URL + '/orders/history', {
+                headers: { 'Authorization': 'Bearer ' + sessionToken }
+            });
+            const data = await response.json();
+            const content = document.getElementById('history-content');
+            
+            if (data.orders.length === 0) {
+                content.innerHTML = '<div class="text-center py-12"><p class="text-gray-500 text-lg">No orders yet</p></div>';
             } else {
                 let html = '';
-                cart.forEach(item => {
-                    html += '<div class="flex justify-between p-3 bg-gray-50 rounded"><div><span>' + item.name + '</span><span class="text-gray-500 text-sm ml-2">x' + item.quantity + '</span></div><span class="text-orange-600">$' + (item.price * item.quantity).toFixed(2) + '</span></div>';
+                data.orders.forEach(order => {
+                    const colors = { 
+                        'Draft': 'bg-yellow-100 text-yellow-800', 
+                        'Completed': 'bg-green-100 text-green-800', 
+                        'Cancelled': 'bg-red-100 text-red-800' 
+                    };
+                    html += '<div class="border rounded-lg p-5"><div class="flex justify-between mb-3"><span class="px-3 py-1 rounded-full text-xs font-semibold ' + (colors[order.status] || 'bg-gray-100') + '">' + order.status + '</span><span class="text-lg font-bold">$' + order.total.toFixed(2) + '</span></div><div class="text-sm text-gray-600 mb-2">' + new Date(order.date).toLocaleString() + '</div><div class="text-sm">';
+                    order.items.forEach(item => { 
+                        html += '<div>' + item.quantity + 'x ' + item.name + '</div>'; 
+                    });
+                    html += '</div></div>';
                 });
-                html += '<div class="border-t pt-3 mt-3 flex justify-between"><span class="text-lg font-bold">Total:</span><span class="text-2xl font-bold text-orange-600">$' + total.toFixed(2) + '</span></div>';
-                items.innerHTML = html;
-                clearBtn.classList.remove('hidden');
-                checkoutBtn.classList.remove('hidden');
+                content.innerHTML = html;
             }
+            document.getElementById('history-modal').classList.remove('hidden');
+            console.log('✅ Order history loaded');
+        } catch (e) {
+            console.error('❌ Order history error:', e);
         }
+    }
 
-        function clearCart() { 
-            processOrder('clear cart'); 
-        }
-        
-        function checkout() { 
-            processOrder('complete my order'); 
-        }
+    function closeHistory() { 
+        document.getElementById('history-modal').classList.add('hidden'); 
+    }
+</script>
 
-        async function showOrderHistory() {
-            try {
-                console.log('📜 Loading order history...');
-                const response = await fetch(API_URL + '/orders/history', {
-                    headers: { 'Authorization': 'Bearer ' + sessionToken }
-                });
-                const data = await response.json();
-                const content = document.getElementById('history-content');
-                
-                if (data.orders.length === 0) {
-                    content.innerHTML = '<div class="text-center py-12"><p class="text-gray-500 text-lg">No orders yet</p></div>';
-                } else {
-                    let html = '';
-                    data.orders.forEach(order => {
-                        const colors = { 
-                            'Draft': 'bg-yellow-100 text-yellow-800', 
-                            'Completed': 'bg-green-100 text-green-800', 
-                            'Cancelled': 'bg-red-100 text-red-800
+    </body>
+</html>
+</parameter>
