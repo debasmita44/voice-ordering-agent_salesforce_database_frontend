@@ -136,18 +136,46 @@
         const SESSION_ID = 'user_' + Date.now();
         let useElevenLabs = true;
         let welcomeMessageShown = false;
+        let elevenLabsReady = false;
+
+        // Pre-warm ElevenLabs connection
+        async function initElevenLabs() {
+            try {
+                console.log('🔥 Pre-warming ElevenLabs...');
+                const response = await fetch(API_URL + '/text-to-speech', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: 'test' })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        elevenLabsReady = true;
+                        console.log('✅ ElevenLabs ready');
+                    } else {
+                        console.log('⚠️ ElevenLabs not available:', data.error);
+                        useElevenLabs = false;
+                    }
+                } else {
+                    console.log('⚠️ ElevenLabs returned error status:', response.status);
+                    useElevenLabs = false;
+                }
+            } catch (e) {
+                console.log('⚠️ ElevenLabs not available, will use browser TTS');
+                useElevenLabs = false;
+            }
+        }
 
         window.addEventListener('load', async () => {
             console.log('🚀 App starting...');
             console.log('📡 API URL:', API_URL);
             
-            // Check if API URL is configured
             if (API_URL.includes('your-app-name')) {
                 showError('Please update API_URL in the code with your Railway app URL');
                 return;
             }
             
-            // Test API connection
             try {
                 console.log('🔍 Testing API connection...');
                 const testResponse = await fetch(API_URL.replace('/api', '') + '/', {
@@ -163,11 +191,10 @@
                 console.log('✅ API connected:', testData);
             } catch (error) {
                 console.error('❌ API connection failed:', error);
-                showError(`Cannot connect to server. Please check:\n1. Railway app is deployed\n2. API_URL is correct\n3. CORS is enabled\n\nError: ${error.message}`);
+                showError(`Cannot connect to server. Error: ${error.message}`);
                 return;
             }
             
-            // Check for existing session
             const storedToken = localStorage.getItem('session_token');
             if (storedToken) {
                 try {
@@ -187,7 +214,7 @@
                         showMainApp();
                         return;
                     } else {
-                        console.log('⚠️ Session expired, please login again');
+                        console.log('⚠️ Session expired');
                         localStorage.removeItem('session_token');
                     }
                 } catch (e) { 
@@ -323,13 +350,27 @@
             }
         }
 
-        function showMainApp() {
+        async function showMainApp() {
             document.getElementById('auth-modal').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
             document.getElementById('user-name-display').textContent = currentUser.name;
             console.log('🎉 Welcome', currentUser.name);
+            
             initSpeechRecognition();
             loadMenu();
+            
+            // DON'T load welcome yet - wait for ElevenLabs
+            console.log('⏳ Waiting for ElevenLabs to initialize...');
+            
+            // Initialize ElevenLabs and WAIT for it
+            await initElevenLabs();
+            
+            // Add extra delay to ensure it's fully ready
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            console.log('✅ Everything ready, loading welcome message...');
+            
+            // NOW load welcome - ElevenLabs is guaranteed ready
             loadWelcome();
         }
 
@@ -417,65 +458,145 @@
 
         function speakText(text) {
             return new Promise(async (resolve) => {
-                if (useElevenLabs) {
+                console.log('🔊 speakText called with:', text.substring(0, 50));
+                console.log('🔊 useElevenLabs:', useElevenLabs, 'elevenLabsReady:', elevenLabsReady);
+                
+                if (useElevenLabs && elevenLabsReady) {
                     try {
-                        console.log('🎤 Attempting ElevenLabs TTS...');
+                        console.log('🎤 Making ElevenLabs API call...');
+                        const startTime = Date.now();
+                        
                         const response = await fetch(API_URL + '/text-to-speech', {
                             method: 'POST', 
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ text: text })
                         });
                         
-                        console.log('ElevenLabs response status:', response.status);
+                        const elapsed = Date.now() - startTime;
+                        console.log(`⏱️ ElevenLabs API responded in ${elapsed}ms with status:`, response.status);
                         
                         if (response.ok) {
                             const data = await response.json();
-                            console.log('ElevenLabs response:', data);
+                            console.log('📦 ElevenLabs response data:', {
+                                success: data.success,
+                                hasAudio: !!data.audio,
+                                voiceId: data.voice_id,
+                                audioLength: data.audio ? data.audio.length : 0
+                            });
                             
                             if (data.success && data.audio) {
-                                console.log('✅ Playing ElevenLabs audio');
+                                console.log('✅ Creating audio element with ElevenLabs data...');
                                 const audio = new Audio('data:audio/mpeg;base64,' + data.audio);
+                                
+                                audio.onloadeddata = () => {
+                                    console.log('✅ Audio loaded, duration:', audio.duration);
+                                };
+                                
                                 audio.onended = () => {
-                                    console.log('✅ Audio finished');
+                                    console.log('✅ ElevenLabs audio playback completed');
                                     resolve();
                                 };
+                                
                                 audio.onerror = (e) => {
-                                    console.error('❌ Audio playback error:', e);
+                                    console.error('❌ Audio element error:', e);
                                     speakWithBrowserTTS(text, resolve);
                                 };
-                                await audio.play();
-                                return;
+                                
+                                try {
+                                    await audio.play();
+                                    console.log('✅ Audio.play() succeeded');
+                                    return;
+                                } catch (playError) {
+                                    console.error('❌ Audio.play() failed:', playError);
+                                    speakWithBrowserTTS(text, resolve);
+                                    return;
+                                }
                             } else {
-                                console.log('❌ Invalid ElevenLabs response, using fallback');
+                                console.error('❌ Invalid ElevenLabs response:', data);
                             }
                         } else {
                             const errorText = await response.text();
-                            console.log('❌ ElevenLabs failed:', errorText);
+                            console.error('❌ ElevenLabs HTTP error:', response.status, errorText);
                         }
                     } catch (e) { 
-                        console.error('❌ ElevenLabs error:', e);
+                        console.error('❌ ElevenLabs exception:', e);
                     }
+                } else {
+                    console.log('⚠️ Skipping ElevenLabs - useElevenLabs:', useElevenLabs, 'ready:', elevenLabsReady);
                 }
-                console.log('🔊 Using browser TTS');
+                
+                console.log('🔊 Falling back to browser TTS');
                 speakWithBrowserTTS(text, resolve);
             });
         }
 
         function speakWithBrowserTTS(text, callback) {
             if ('speechSynthesis' in window) {
+                // Cancel any ongoing speech
+                window.speechSynthesis.cancel();
+                
                 const utterance = new SpeechSynthesisUtterance(text);
-                const voices = window.speechSynthesis.getVoices();
-                const preferred = ['Google US English', 'Microsoft Zira', 'Samantha'];
-                for (let p of preferred) {
-                    const voice = voices.find(v => v.name.includes(p));
-                    if (voice) { utterance.voice = voice; break; }
+                
+                // Wait for voices to load
+                const setVoice = () => {
+                    const voices = window.speechSynthesis.getVoices();
+                    console.log('🔊 Available voices:', voices.length);
+                    
+                    // Prefer natural-sounding voices
+                    const preferred = [
+                        'Google US English',
+                        'Microsoft Zira - English (United States)',
+                        'Samantha',
+                        'Alex',
+                        'Google UK English Female',
+                        'Microsoft David - English (United States)'
+                    ];
+                    
+                    for (let p of preferred) {
+                        const voice = voices.find(v => v.name.includes(p));
+                        if (voice) { 
+                            utterance.voice = voice;
+                            console.log('✅ Using voice:', voice.name);
+                            break;
+                        }
+                    }
+                    
+                    // If no preferred voice found, use first English voice
+                    if (!utterance.voice) {
+                        const englishVoice = voices.find(v => v.lang.startsWith('en'));
+                        if (englishVoice) {
+                            utterance.voice = englishVoice;
+                            console.log('✅ Using voice:', englishVoice.name);
+                        }
+                    }
+                };
+                
+                // Set voice immediately
+                setVoice();
+                
+                // Also set on voiceschanged event
+                if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                    window.speechSynthesis.onvoiceschanged = setVoice;
                 }
-                utterance.rate = 0.95;
-                utterance.pitch = 1.1;
-                utterance.onend = () => callback();
-                utterance.onerror = () => callback();
+                
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                
+                utterance.onend = () => {
+                    console.log('✅ Browser TTS finished');
+                    callback();
+                };
+                
+                utterance.onerror = (e) => {
+                    console.error('❌ Browser TTS error:', e);
+                    callback();
+                };
+                
                 window.speechSynthesis.speak(utterance);
+                console.log('🔊 Browser TTS speaking...');
             } else { 
+                console.log('⚠️ Speech synthesis not supported');
                 callback(); 
             }
         }
@@ -540,7 +661,7 @@
 
         async function loadWelcome() {
             if (welcomeMessageShown) {
-                console.log('⚠️ Welcome message already shown');
+                console.log('⚠️ Welcome already shown');
                 return;
             }
             welcomeMessageShown = true;
@@ -552,12 +673,11 @@
                 });
                 const data = await response.json();
                 
-                // Wait longer to ensure ElevenLabs is ready
-                await new Promise(r => setTimeout(r, 1000));
-                
+                console.log('👋 Welcome message received:', data.response);
                 addToLog('agent', data.response);
                 queueSpeech(data.response);
-                console.log('✅ Welcome message loaded');
+                
+                console.log('✅ Welcome message queued');
             } catch (e) {
                 console.error('❌ Welcome message error:', e);
             }
@@ -602,33 +722,11 @@
                 const content = document.getElementById('history-content');
                 
                 if (data.orders.length === 0) {
-                    content.innerHTML = html;
-                }
-                document.getElementById('history-modal').classList.remove('hidden');
-                console.log('✅ Order history loaded');
-            } catch (e) {
-                console.error('❌ Order history error:', e);
-            }
-        }
-
-        function closeHistory() { 
-            document.getElementById('history-modal').classList.add('hidden'); 
-        }
-    </script>
-</body>
-</html>.innerHTML = '<div class="text-center py-12"><p class="text-gray-500 text-lg">No orders yet</p></div>';
+                    content.innerHTML = '<div class="text-center py-12"><p class="text-gray-500 text-lg">No orders yet</p></div>';
                 } else {
                     let html = '';
                     data.orders.forEach(order => {
                         const colors = { 
                             'Draft': 'bg-yellow-100 text-yellow-800', 
                             'Completed': 'bg-green-100 text-green-800', 
-                            'Cancelled': 'bg-red-100 text-red-800' 
-                        };
-                        html += '<div class="border rounded-lg p-5"><div class="flex justify-between mb-3"><span class="px-3 py-1 rounded-full text-xs font-semibold ' + (colors[order.status] || 'bg-gray-100') + '">' + order.status + '</span><span class="text-lg font-bold">$' + order.total.toFixed(2) + '</span></div><div class="text-sm text-gray-600 mb-2">' + new Date(order.date).toLocaleString() + '</div><div class="text-sm">';
-                        order.items.forEach(item => { 
-                            html += '<div>' + item.quantity + 'x ' + item.name + '</div>'; 
-                        });
-                        html += '</div></div>';
-                    });
-                    content
+                            'Cancelled': 'bg-red-100 text-red-800
